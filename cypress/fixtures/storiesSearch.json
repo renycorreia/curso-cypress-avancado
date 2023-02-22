@@ -1,0 +1,12 @@
+{
+    "hits": [
+      {
+        "title": "Sample Cypress",
+        "url": "https://example.com/2",
+        "author": "Author 2",
+        "num_comments": 55,
+        "points": 98,
+        "objectID": 1
+      }
+    ]
+  }
