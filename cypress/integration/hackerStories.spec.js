@@ -1,9 +1,17 @@
 describe('Hacker Stories', () => {
   beforeEach(() => {
+    cy.intercept({
+      method: 'GET',
+      pathname: '**/search',
+      query: {
+        query: 'React',
+        page: '0'
+      }
+    }).as('buscaPaginaInicial')
+
     cy.visit('/')
 
-    cy.assertLoadingIsShownAndHidden()
-    cy.contains('More').should('be.visible')
+    cy.wait('@buscaPaginaInicial')
   })
 
   it('shows the footer', () => {
@@ -21,11 +29,20 @@ describe('Hacker Stories', () => {
     it.skip('shows the right data for all rendered stories', () => {})
 
     it('shows 20 stories, then the next 20 after clicking "More"', () => {
+      cy.intercept({
+        method: 'GET',
+        pathname: '**/search',
+        query: {
+          query: 'React',
+          page: '1'
+        }
+      }).as('buscaSegundaPagina')
+
       cy.get('.item').should('have.length', 20)
 
       cy.contains('More').click()
 
-      cy.assertLoadingIsShownAndHidden()
+      cy.wait('@buscaSegundaPagina')
 
       cy.get('.item').should('have.length', 40)
     })
@@ -52,15 +69,6 @@ describe('Hacker Stories', () => {
 
       it('orders by points', () => {})
     })
-
-    // Hrm, how would I simulate such errors?
-    // Since I still don't know, the tests are being skipped.
-    // TODO: Find a way to test them out.
-    context.skip('Errors', () => {
-      it('shows "Something went wrong ..." in case of a server error', () => {})
-
-      it('shows "Something went wrong ..." in case of a network error', () => {})
-    })
   })
 
   context('Search', () => {
@@ -70,13 +78,31 @@ describe('Hacker Stories', () => {
     beforeEach(() => {
       cy.get('#search')
         .clear()
+
+      cy.intercept({
+        method: 'GET',
+        pathname: '**/search',
+        query: {
+          query: `${newTerm}`,
+          page: '0'
+        }
+      }).as('busca')
+
+      cy.intercept({
+        method: 'GET',
+        pathname: '**/search',
+        query: {
+          query: `${initialTerm}`,
+          page: '0'
+        }
+      }).as('buscaAnterior')
     })
 
     it('types and hits ENTER', () => {
       cy.get('#search')
         .type(`${newTerm}{enter}`)
 
-      cy.assertLoadingIsShownAndHidden()
+      cy.wait('@busca')
 
       cy.get('.item').should('have.length', 20)
       cy.get('.item')
@@ -92,7 +118,7 @@ describe('Hacker Stories', () => {
       cy.contains('Submit')
         .click()
 
-      cy.assertLoadingIsShownAndHidden()
+      cy.wait('@busca')
 
       cy.get('.item').should('have.length', 20)
       cy.get('.item')
@@ -102,18 +128,35 @@ describe('Hacker Stories', () => {
         .should('be.visible')
     })
 
+    /* it('types and submits the form directly', () => {
+      cy.get('form input[type="text"]')
+        .should('be.visible')
+        .clear()
+        .type('Cypress')
+      cy.get('form').submit()
+
+      cy.wait('@busca')
+
+      cy.get('.item').should('have.length', 20)
+      cy.get('.item')
+        .first()
+        .should('contain', newTerm)
+      cy.get(`button:contains(${initialTerm})`)
+        .should('be.visible')
+    }) */
+
     context('Last searches', () => {
       it('searches via the last searched term', () => {
         cy.get('#search')
           .type(`${newTerm}{enter}`)
 
-        cy.assertLoadingIsShownAndHidden()
+        cy.wait('@busca')
 
         cy.get(`button:contains(${initialTerm})`)
           .should('be.visible')
           .click()
 
-        cy.assertLoadingIsShownAndHidden()
+        cy.wait('@buscaAnterior')
 
         cy.get('.item').should('have.length', 20)
         cy.get('.item')
@@ -125,18 +168,73 @@ describe('Hacker Stories', () => {
 
       it('shows a max of 5 buttons for the last searched terms', () => {
         const faker = require('faker')
+        let aux1 = ''
+        let aux2 = ''
 
-        Cypress._.times(6, () => {
+        Cypress._.times(7, (index) => {
+          const random = faker.random.word()
+          cy.log(random)
+
+          if (index === 0) {
+            aux1 = random
+          } else if (index === 6) {
+            aux2 = random
+          }
+
+          cy.intercept({
+            method: 'GET',
+            pathname: '**/search',
+            query: {
+              query: `${random}`,
+              page: '0'
+            }
+          }).as('buscaRandom')
+
           cy.get('#search')
             .clear()
-            .type(`${faker.random.word()}{enter}`)
+            .type(`${random}{enter}`)
         })
 
-        cy.assertLoadingIsShownAndHidden()
+        cy.wait('@buscaRandom')
 
         cy.get('.last-searches button')
           .should('have.length', 5)
+
+        cy.get(`button:contains(${aux1})`)
+          .should('not.exist')
+        cy.get(`button:contains(${aux2})`)
+          .should('not.exist')
       })
     })
+  })
+})
+
+context('Errors', () => {
+  const errorMsg = 'Something went wrong ...'
+
+  it('shows "Something went wrong ..." in case of a server error', () => {
+    cy.intercept('GET', '**/search**',
+      { statusCode: 500 }
+    ).as('busca')
+
+    cy.visit('/')
+
+    cy.wait('@busca')
+
+    cy.get(`p:contains(${errorMsg})`)
+      .should('be.visible')
+  })
+
+  it('shows "Something went wrong ..." in case of a network error', () => {
+    cy.intercept('GET', '**/search**',
+      { forceNetworkError: true }
+    ).as('busca')
+
+    cy.visit('/')
+
+    cy.wait('@busca')
+
+    cy.get(`p:contains(${errorMsg})`)
+      .should('be.visible')
   })
 })
