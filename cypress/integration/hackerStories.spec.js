@@ -56,6 +56,9 @@ describe('Hacker Stories', () => {
 
       cy.wait('@buscaNovoTermo')
 
+      cy.getLocalStorage('search')
+        .should('be.equal', newTerm)
+
       cy.get(`button:contains(${initialTerm})`)
         .should('be.visible')
         .click()
@@ -70,6 +73,25 @@ describe('Hacker Stories', () => {
       cy.get(`button:contains(${newTerm})`)
         .should('be.visible')
     })
+  })
+
+  it('shows a "Loading ..." state before showing the results', () => {
+    cy.intercept(
+      'GET',
+      '**/search**',
+      {
+        delay: 1000,
+        fixture: 'stories'
+      }
+    ).as('getDelayedStories')
+
+    cy.visit('/')
+
+    cy.assertLoadingIsShownAndHidden()
+
+    cy.wait('@getDelayedStories')
+
+    cy.get('.item').should('have.length', 2)
   })
 
   context('Using API mock', () => {
@@ -245,6 +267,9 @@ describe('Hacker Stories', () => {
 
         cy.wait('@busca')
 
+        cy.getLocalStorage('search')
+          .should('be.equal', newTerm)
+
         cy.get('.item').should('have.length', 1)
         cy.get('.item')
           .first()
@@ -265,6 +290,9 @@ describe('Hacker Stories', () => {
           .click()
 
         cy.wait('@busca')
+
+        cy.getLocalStorage('search')
+          .should('be.equal', newTerm)
 
         cy.get('.item').should('have.length', 1)
         cy.get('.item')
@@ -300,10 +328,15 @@ describe('Hacker Stories', () => {
               .type(`${random}{enter}`)
 
             cy.wait('@buscaRandom')
+
+            cy.getLocalStorage('search')
+              .should('be.equal', random)
           })
 
-          cy.get('.last-searches button')
-            .should('have.length', 5)
+          cy.get('.last-searches')
+            .within(() => {
+              cy.get('button').should('have.length', 5)
+            })
 
           cy.get(`button:contains(${aux1})`)
             .should('not.exist')
